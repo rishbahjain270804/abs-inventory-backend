@@ -1,39 +1,69 @@
 # ABS Inventory Backend
 
-Backend API for ABS Inventory Management System.
+Node.js + Express backend for ABS Inventory Management System with MySQL database.
 
-## Environment Variables
+## Features
+- Multi-item order management with complete CRUD operations
+- MySQL database with comprehensive seeding scripts
+- JWT authentication
+- RESTful API design
 
-Create a `.env` file with:
+## Setup
 
+1. **Install Dependencies**
+```bash
+npm install
+```
+
+2. **Environment Variables**
+
+Create `.env` file:
 ```env
-DB_HOST=your_mysql_host
-DB_USER=your_mysql_user
-DB_PASSWORD=your_mysql_password
+DB_HOST=localhost
+DB_USER=root
+DB_PASSWORD=your_password
 DB_NAME=abs_inventory_system
 PORT=5000
 JWT_SECRET=your_secret_key
 ```
 
-## Local Development
-
+3. **Initialize Database**
 ```bash
-npm install
-node scripts/initDatabase.js
-node scripts/insertDummyData.js
+npm run init-db
+npm run seed-data
+```
+
+4. **Run Development Server**
+```bash
 npm run dev
 ```
 
-## Vercel Deployment
+## Deployment
 
-1. Push code to GitHub
-2. Import project in Vercel
-3. Add environment variables in Vercel dashboard
+### Railway
+1. Create MySQL database service
+2. Deploy this backend repository
+3. Add environment variables (see `.env.example`)
+4. Run `npm run init-db` in Railway shell
+
+### Render
+1. Create Web Service from this repo
+2. Add MySQL database (external or Render PostgreSQL alternative)
+3. Set environment variables
 4. Deploy
 
-**Note**: Vercel serverless functions don't support persistent database connections. Consider using:
-- PlanetScale (MySQL-compatible)
-- Railway
-- AWS RDS
-- Heroku
-- Render (better for Node.js + MySQL)
+## API Documentation
+
+Base URL: `http://localhost:5000/api`
+
+### Endpoints
+- **Orders**: `/orders`, `/orders/bulk`, `/orders/with-items/:id`
+- **Ledgers**: `/ledgers`
+- **Items**: `/items`
+- **Districts**: `/districts`
+
+## Scripts
+- `npm start` - Production server
+- `npm run dev` - Development server with nodemon
+- `npm run init-db` - Initialize database schema
+- `npm run seed-data` - Seed sample data
