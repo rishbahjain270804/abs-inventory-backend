@@ -1,43 +1,45 @@
-const Order = require('../models/Order');
-const Ledger = require('../models/Ledger');
-const Item = require('../models/Item');
-const District = require('../models/District');
+const db = require('../config/database');
 
-// Get dashboard statistics
-const getDashboardStats = async (req, res) => {
+// Get next order number for today
+const getNextOrderNumber = async (req, res) => {
   try {
-    const [orders, ledgers, items, districts] = await Promise.all([
-      Order.find().lean(),
-      Ledger.countDocuments(),
-      Item.countDocuments(),
-      District.countDocuments()
-    ]);
-
-    const totalOrders = orders.length;
-    const pendingOrders = orders.filter(o => o.status === 'Pending').length;
-    const totalDispatched = orders.filter(o => o.status === 'Dispatched').length;
+    const today = new Date().toISOString().split('T')[0].replace(/-/g, ''); // Format: YYYYMMDD
+    const prefix = `ORD-${today}-`;
     
-    const revenue = orders.reduce((sum, o) => sum + (o.total_amount || 0), 0);
-    const collectedRevenue = orders.reduce((sum, o) => sum + (o.paid_amount || 0), 0);
-    const outstandingBalance = revenue - collectedRevenue;
-
-    res.json({
-      totalOrders,
-      pendingOrders,
-      totalDispatched,
-      totalLedgers: ledgers,
-      totalItems: items,
-      totalDistricts: districts,
-      revenue,
-      collectedRevenue,
-      outstandingBalance
+    // Get the latest order number for today
+    const [rows] = await db.query(
+      `SELECT order_number FROM orders 
+       WHERE order_number LIKE ? 
+       ORDER BY order_number DESC 
+       LIMIT 1`,
+      [`${prefix}%`]
+    );
+    
+    let nextSequence = 1;
+    
+    if (rows.length > 0) {
+      // Extract the sequence number from the last order
+      const lastOrderNumber = rows[0].order_number;
+      const lastSequence = parseInt(lastOrderNumber.split('-')[2]) || 0;
+      nextSequence = lastSequence + 1;
+    }
+    
+    // Format sequence as 3-digit number (001, 002, etc.)
+    const sequenceStr = nextSequence.toString().padStart(3, '0');
+    const newOrderNumber = `${prefix}${sequenceStr}`;
+    
+    res.json({ 
+      success: true, 
+      order_number: newOrderNumber,
+      date: today,
+      sequence: nextSequence
     });
   } catch (error) {
-    console.error('Error fetching dashboard stats:', error);
-    res.status(500).json({ message: 'Error fetching statistics' });
+    console.error('Error generating order number:', error);
+    res.status(500).json({ success: false, message: 'Error generating order number' });
   }
 };
 
 module.exports = {
-  getDashboardStats
+  getNextOrderNumber
 };

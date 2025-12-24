@@ -1,10 +1,6 @@
-require('dotenv').config({ path: __dirname + '/.env' });
-
-console.log('🔍 Environment check - MONGODB_URI exists:', !!process.env.MONGODB_URI);
-
 const express = require('express');
 const cors = require('cors');
-const connectDB = require('./config/mongodb');
+require('dotenv').config();
 
 const districtRoutes = require('./routes/districtRoutes');
 const ledgerRoutes = require('./routes/ledgerRoutes');
@@ -20,25 +16,83 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Connect to MongoDB
-connectDB();
+// Create API Router
+const apiRouter = express.Router();
 
-// Routes
-app.use('/api/districts', districtRoutes);
-app.use('/api/ledgers', ledgerRoutes);
-app.use('/api/items', itemRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/utility', utilityRoutes);
+apiRouter.use('/districts', districtRoutes);
+apiRouter.use('/ledgers', ledgerRoutes);
+apiRouter.use('/items', itemRoutes);
+apiRouter.use('/orders', orderRoutes);
+apiRouter.use('/utility', utilityRoutes);
 
-// Health check
+// Health & Debug on Router
+apiRouter.get('/health', (req, res) => {
+  res.json({ status: 'ok', message: 'ABS Inventory API is running' });
+});
+
+apiRouter.get('/debug', async (req, res) => {
+  try {
+    const db = require('./config/database');
+    const [rows] = await db.query('SHOW TABLES');
+    res.json({ 
+      success: true, 
+      message: 'Database connection successful', 
+      tables: rows,
+      env: {
+        db_name: process.env.DB_NAME,
+        db_user: process.env.DB_USER
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database connection failed', 
+      error: error.message,
+      code: error.code
+    });
+  }
+});
+
+// Mount Router at both paths
+app.use('/api', apiRouter);
+app.use('/', apiRouter); // Fallback for cPanel when path is stripped
+
+// Health check route
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'ABS Inventory API is running', database: 'MongoDB' });
+  res.json({ status: 'ok', message: 'ABS Inventory API is running' });
+});
+
+// Debug Route
+app.get('/api/debug', async (req, res) => {
+  try {
+    const db = require('./config/database');
+    const [rows] = await db.query('SHOW TABLES');
+    res.json({ 
+      success: true, 
+      message: 'Database connection successful', 
+      tables: rows,
+      env: {
+        db_name: process.env.DB_NAME,
+        db_user: process.env.DB_USER
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      message: 'Database connection failed', 
+      error: error.message,
+      code: error.code
+    });
+  }
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 ABS Inventory Backend running on port ${PORT}`);
-  console.log(`📊 Database: MongoDB Atlas`);
-});
+// For cPanel/VPS, we need to listen on the port, even in production
+if (require.main === module || process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`ABS Inventory Backend running on port ${PORT}`);
+  });
+}
 
+// Export for Vercel serverless
 module.exports = app;
