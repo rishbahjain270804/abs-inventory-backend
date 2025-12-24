@@ -40,6 +40,42 @@ const getNextOrderNumber = async (req, res) => {
   }
 };
 
+// Get dashboard statistics
+const getDashboardStats = async (req, res) => {
+  try {
+    const [orderStats] = await db.query(`
+      SELECT 
+        COUNT(*) as totalOrders,
+        SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) as pendingOrders,
+        SUM(CASE WHEN status = 'Dispatched' THEN 1 ELSE 0 END) as totalDispatched,
+        SUM(total_amount) as revenue,
+        SUM(paid_amount) as collectedRevenue,
+        SUM(balance_due) as outstandingBalance
+      FROM orders
+    `);
+
+    const [ledgerCount] = await db.query('SELECT COUNT(*) as count FROM ledgers');
+    const [itemCount] = await db.query('SELECT COUNT(*) as count FROM items');
+    const [districtCount] = await db.query('SELECT COUNT(*) as count FROM districts');
+
+    res.json({
+      totalOrders: orderStats[0].totalOrders || 0,
+      pendingOrders: orderStats[0].pendingOrders || 0,
+      totalDispatched: orderStats[0].totalDispatched || 0,
+      totalLedgers: ledgerCount[0].count || 0,
+      totalItems: itemCount[0].count || 0,
+      totalDistricts: districtCount[0].count || 0,
+      revenue: parseFloat(orderStats[0].revenue) || 0,
+      collectedRevenue: parseFloat(orderStats[0].collectedRevenue) || 0,
+      outstandingBalance: parseFloat(orderStats[0].outstandingBalance) || 0
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    res.status(500).json({ message: 'Error fetching dashboard statistics' });
+  }
+};
+
 module.exports = {
-  getNextOrderNumber
+  getNextOrderNumber,
+  getDashboardStats
 };
