@@ -1,6 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+
+// Load .env explicitly with absolute path for cPanel compatibility
+require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 
 const districtRoutes = require('./routes/districtRoutes');
 const ledgerRoutes = require('./routes/ledgerRoutes');
@@ -16,83 +20,62 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Create API Router
-const apiRouter = express.Router();
-
-apiRouter.use('/districts', districtRoutes);
-apiRouter.use('/ledgers', ledgerRoutes);
-apiRouter.use('/items', itemRoutes);
-apiRouter.use('/orders', orderRoutes);
-apiRouter.use('/utility', utilityRoutes);
-
-// Health & Debug on Router
-apiRouter.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'ABS Inventory API is running' });
+// Disable caching for real-time data updates
+app.use((req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+  next();
 });
 
-apiRouter.get('/debug', async (req, res) => {
+// API Routes
+app.use('/api/districts', districtRoutes);
+app.use('/api/ledgers', ledgerRoutes);
+app.use('/api/items', itemRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/utility', utilityRoutes);
+
+// Fallback routes for cPanel path stripping
+app.use('/districts', districtRoutes);
+app.use('/ledgers', ledgerRoutes);
+app.use('/items', itemRoutes);
+app.use('/orders', orderRoutes);
+app.use('/utility', utilityRoutes);
+
+// Health check
+app.get(['/api/health', '/health'], (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Debug endpoint
+app.get(['/api/debug', '/debug'], async (req, res) => {
   try {
     const db = require('./config/database');
-    const [rows] = await db.query('SHOW TABLES');
-    res.json({ 
-      success: true, 
-      message: 'Database connection successful', 
-      tables: rows,
-      env: {
-        db_name: process.env.DB_NAME,
-        db_user: process.env.DB_USER
+    const [districtCount] = await db.query('SELECT COUNT(*) as count FROM districts');
+    const [itemCount] = await db.query('SELECT COUNT(*) as count FROM items');
+    const [ledgerCount] = await db.query('SELECT COUNT(*) as count FROM ledgers');
+    const [orderCount] = await db.query('SELECT COUNT(*) as count FROM orders');
+
+    res.json({
+      success: true,
+      database: process.env.DB_NAME,
+      counts: {
+        districts: districtCount[0].count,
+        items: itemCount[0].count,
+        ledgers: ledgerCount[0].count,
+        orders: orderCount[0].count
       }
     });
   } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database connection failed', 
-      error: error.message,
-      code: error.code
-    });
-  }
-});
-
-// Mount Router at both paths
-app.use('/api', apiRouter);
-app.use('/', apiRouter); // Fallback for cPanel when path is stripped
-
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', message: 'ABS Inventory API is running' });
-});
-
-// Debug Route
-app.get('/api/debug', async (req, res) => {
-  try {
-    const db = require('./config/database');
-    const [rows] = await db.query('SHOW TABLES');
-    res.json({ 
-      success: true, 
-      message: 'Database connection successful', 
-      tables: rows,
-      env: {
-        db_name: process.env.DB_NAME,
-        db_user: process.env.DB_USER
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      success: false, 
-      message: 'Database connection failed', 
-      error: error.message,
-      code: error.code
-    });
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Start server
-// For cPanel/VPS, we need to listen on the port, even in production
-if (require.main === module || process.env.NODE_ENV !== 'production') {
-  app.listen(PORT, () => {
-    console.log(`ABS Inventory Backend running on port ${PORT}`);
-  });
-}
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
-// Export for Vercel serverless
 module.exports = app;
