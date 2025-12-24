@@ -192,7 +192,7 @@ async function initDatabase() {
 
   } catch (error) {
     console.error('❌ Error initializing database:', error.message);
-    process.exit(1);
+    throw error; // Re-throw for app.js to handle
   } finally {
     if (connection) {
       await connection.end();
@@ -200,4 +200,12 @@ async function initDatabase() {
   }
 }
 
-initDatabase();
+// Run directly if called as script
+if (require.main === module) {
+  initDatabase()
+    .then(() => process.exit(0))
+    .catch(() => process.exit(1));
+}
+
+// Export for use in app.js
+module.exports = initDatabase;
